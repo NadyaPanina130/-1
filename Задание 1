@@ -1,0 +1,58 @@
+#Панина Надежда Евгеньевна — для региона 63 рассчитайте урожайность пшеницы в 2005 году, взяв для рассчета средние суммы активных температур за предыдущие 15 лет, с 19 ближайших метеостанций
+#Подключим нужные 
+library(lubridate)
+library(stringr)
+library(ggplot2)
+library(tidyverse)
+library(rnoaa)
+#station_data = ghcnd_stations() #Может занять несколько минут лучше выполнить один раз в месте с хорошим интернетом и сохранить результат
+setwd("~/Desktop")
+station_data = read.csv("station_data.csv")
+#После получения всписка всех станций, получите список станций ближайших к столице вашего региона,создав таблицу с именем региона и координатами его столицы
+samara = data.frame(id = "SAMARA", latitude = 55.159902,  longitude = 61.402554)
+samara _around = meteo_nearby_stations(lat_lon_df = samara, station_data = station_data,
+                                    limit = 30, var = c("PRCP", "TAVG"),
+                                    year_min = 1990, year_max = 2005)
+# samara _around это список единственным элементом которого является таблица, содержащая идентификаторы метеостанций отсортированных по их 
+# удалленности от Самары, очевидно что первым элементом таблицы будет идентификатор метеостанции Самары, его то мы и попытаемся получить
+samara _id = samara _around[["SAMARA"]][["id"]][1]
+str(samara _around)
+#Для получения всех данных с метеостанции, зная ее идентификатор, используйте след. команду
+all_ samara _data = meteo_tidy_ghcnd(stationid = samara _id)
+samara _table= samara _around[[1]]
+summary(samara _table)
+all_i=data.frame()
+all_chelyabinsk=data.frame()
+for(i in 1:19)
+{all_i = meteo_tidy_ghcnd(stationid= samara _around[["SAMARA"]][["id"]][i])
+all_i=all_i[ ,c("id","date", "tavg")]
+print(all_i)
+all_ samara =rbind(all_ samara, all_i)}
+#Средняя сумма активных температур
+data_ samara =all_ samara %>% 
+  mutate(date=ymd(date),
+         year=year(date),
+         month=month(date)) %>% 
+  mutate(tavg=case_when(tavg<50 ~ 0, TRUE ~ tavg)/10) %>% 
+  filter (year>1990 & year<2005) %>% 
+  group_by(id,year,month) %>% 
+  summarize(tsum=sum(tavg, na.rm=T)) %>% 
+  group_by(month) %>% summarize(St = mean(tsum, na.rm=T))
+afi=c(0.00,0.00,0.00,32.11,26.31,25.64,32.20,18.73,
+      16.30,13.83,0.00,0.00)
+bfi=c(0.00,0.00,0.00,11.30,9.26,9.03,8.16,6.59,5.73,
+      4.87,0.00,0.00)
+di=c(0.00,0.00,0.00,0.33,1.00,1.00,1.00,0.32,0.00,
+     0.00,0.00,0.00)
+y=1.0
+Kf=300
+Qj=1600
+Lj=2.2
+Ej=25
+#Рассчитаем урожайность по месяцам
+data_ samara = data_ samara %>% 
+  mutate(Fi=(afi)+(bfi)*y*(data_ samara $St))
+data_ samara = data_ samara %>% mutate(Yj=(((data_ samara $Fi)*(di)*Kf)/(Qj*Lj*(100-Ej))))
+#Расчитываем суммарную урожайность как сумму по месяцам
+YIELD=sum(data_ samara$Yj);YIELD
+# Ответ: 16.82 ц/га
